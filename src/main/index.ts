@@ -1,18 +1,24 @@
 import { ipcMain, app, Menu, session } from 'electron';
 import { resolve, extname } from 'path';
 import { platform, homedir } from 'os';
-import { extensionsMain } from 'electron-extensions';
+import { ExtensibleSession } from 'electron-extensions';
 
-import { AppWindow } from './app-window';
+import { AppWindow } from './windows/app';
 import { runAdblockService } from './services';
-import { existsSync, writeFileSync, promises } from 'fs';
-import { getPath } from '~/shared/utils/paths';
-import { Settings } from '~/renderer/app/models/settings';
-import { makeId } from '~/shared/utils/string';
+import { promises } from 'fs';
+import { getPath } from '~/utils/paths';
+import { ISettings } from '~/interfaces';
+import { makeId } from '~/utils/string';
 import { getMainMenu } from './menus/main';
 import { runAutoUpdaterService } from './services/auto-updater';
+import { checkFiles } from '~/utils/files';
+import { DEFAULT_SETTINGS } from '~/constants';
 
 export const log = require('electron-log');
+
+const iohook = require('iohook');
+
+iohook.start();
 
 app.setPath('userData', resolve(homedir(), '.wexond'));
 log.transports.file.level = 'verbose';
@@ -20,10 +26,12 @@ log.transports.file.file = resolve(app.getPath('userData'), 'log.log');
 
 ipcMain.setMaxListeners(0);
 
-export let appWindow: AppWindow;
-export let settings: Settings = {};
+app.commandLine.appendSwitch('--enable-transparent-visuals');
 
-ipcMain.on('settings', (e: any, s: Settings) => {
+export let appWindow: AppWindow;
+export let settings: ISettings = DEFAULT_SETTINGS;
+
+ipcMain.on('settings', (e: any, s: ISettings) => {
   settings = { ...settings, ...s };
 });
 
@@ -60,18 +68,7 @@ process.on('uncaughtException', error => {
 });
 
 app.on('ready', async () => {
-  if (!existsSync(getPath('settings.json'))) {
-    writeFileSync(
-      getPath('settings.json'),
-      JSON.stringify({
-        dialType: 'top-sites',
-        isDarkTheme: false,
-        isShieldToggled: true,
-      } as Settings),
-    );
-  }
-
-  Menu.setApplicationMenu(getMainMenu(appWindow));
+  checkFiles();
 
   app.on('activate', () => {
     if (appWindow === null) {
@@ -81,18 +78,39 @@ app.on('ready', async () => {
 
   appWindow = new AppWindow();
 
+  Menu.setApplicationMenu(getMainMenu(appWindow));
+
   const viewSession = session.fromPartition('persist:view');
 
+  app.on('login', async (e, webContents, request, authInfo, callback) => {
+    e.preventDefault();
+
+    const credentials = await appWindow.authWindow.requestAuth(request.url);
+
+    if (credentials) {
+      callback(credentials.username, credentials.password);
+    }
+  });
+
   viewSession.setPermissionRequestHandler(
-    (webContents, permission, callback) => {
-      if (permission === 'notifications' || permission === 'fullscreen') {
+    async (webContents, permission, callback, details) => {
+      if (permission === 'fullscreen') {
         callback(true);
       } else {
-        callback(false);
+        try {
+          const response = await appWindow.permissionWindow.requestPermission(
+            permission,
+            webContents.getURL(),
+            details,
+          );
+          callback(response);
+        } catch (e) {
+          callback(false);
+        }
       }
     },
   );
-  
+
   viewSession.on('will-download', (event, item, webContents) => {
     const fileName = item.getFilename();
     const savePath = resolve(app.getPath('downloads'), fileName);
@@ -131,13 +149,17 @@ app.on('ready', async () => {
     });
   });
 
-  extensionsMain.setSession(viewSession);
+  const extensions = new ExtensibleSession(viewSession);
+  extensions.addWindow(appWindow);
 
   const extensionsPath = getPath('extensions');
   const dirs = await promises.readdir(extensionsPath);
 
   for (const dir of dirs) {
-    extensionsMain.load(resolve(extensionsPath, dir));
+    const extension = await extensions.loadExtension(
+      resolve(extensionsPath, dir),
+    );
+    extension.backgroundPage.webContents.openDevTools();
   }
 
   runAutoUpdaterService(appWindow);

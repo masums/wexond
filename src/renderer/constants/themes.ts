@@ -1,10 +1,11 @@
-import { Theme } from '../app/models/theme';
+import { ITheme } from '~/interfaces';
 import { transparency } from './transparency';
 import { colors } from './colors';
 
-export const lightTheme: Theme = {
+export const lightTheme: ITheme = {
   'toolbar.backgroundColor': '#fff',
-  'toolbar.bottomLine.backgroundColor': '#e5e5e5',
+  'toolbar.overlay.backgroundColor': '#e8ebec',
+  'toolbar.bottomLine.backgroundColor': 'rgba(0, 0, 0, 0.12)',
   'toolbar.icons.invert': false,
   'toolbar.separator.color': 'rgba(0, 0, 0, 0.12)',
   'tab.backgroundOpacity': 0.85,
@@ -19,11 +20,19 @@ export const lightTheme: Theme = {
   'overlay.foreground': 'dark',
   'overlay.backgroundColor': '#fff',
   'overlay.separator.color': 'rgba(0, 0, 0, 0.12)',
+  'overlay.scrollbar.backgroundColor': 'rgba(0, 0, 0, 0.16)',
+  'overlay.scrollbar.hover.backgroundColor': 'rgba(0, 0, 0, 0.32)',
+  'control.backgroundColor': 'rgba(0, 0, 0, 0.08)',
+  'control.hover.backgroundColor': 'rgba(0, 0, 0, 0.1)',
+  'control.valueColor': '#000',
+  'control.icon': 'light',
+  'switch.backgroundColor': 'rgba(0, 0, 0, 0.16)',
   accentColor: colors.blue['500'],
 };
 
-export const darkTheme: Theme = {
+export const darkTheme: ITheme = {
   'toolbar.backgroundColor': '#1c1c1c',
+  'toolbar.overlay.backgroundColor': '#414141',
   'toolbar.bottomLine.backgroundColor': '#000',
   'toolbar.icons.invert': true,
   'toolbar.separator.color': 'rgba(255, 255, 255, 0.12)',
@@ -39,5 +48,12 @@ export const darkTheme: Theme = {
   'overlay.dialog.backgroundColor': '#303030',
   'overlay.foreground': 'light',
   'overlay.separator.color': 'rgba(255, 255, 255, 0.12)',
+  'overlay.scrollbar.backgroundColor': 'rgba(255, 255, 255, 0.16)',
+  'overlay.scrollbar.hover.backgroundColor': 'rgba(255, 255, 255, 0.48)',
+  'control.backgroundColor': 'rgba(255, 255, 255, 0.1)',
+  'control.hover.backgroundColor': 'rgba(255, 255, 255, 0.12)',
+  'control.valueColor': '#fff',
+  'control.icon': 'dark',
+  'switch.backgroundColor': 'rgba(255, 255, 255, 0.24)',
   accentColor: colors.blue['500'],
 };

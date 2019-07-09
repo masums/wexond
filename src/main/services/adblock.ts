@@ -4,20 +4,16 @@ import { resolve } from 'path';
 import { appWindow, settings } from '..';
 import Axios from 'axios';
 
-import {
-  FiltersEngine,
-  makeRequest,
-  updateResponseHeadersWithCSP,
-} from '@cliqz/adblocker';
-import { parse } from 'tldts';
-import { getPath } from '~/shared/utils/paths';
+import { FiltersEngine, Request } from '@cliqz/adblocker';
+import { getPath } from '~/utils';
 
 const lists: any = {
   easylist: 'https://easylist.to/easylist/easylist.txt',
   easyprivacy: 'https://easylist.to/easylist/easyprivacy.txt',
-  malwaredomains: 'http://mirror1.malwaredomains.com/files/justdomains',
-  nocoin:
-    'https://raw.githubusercontent.com/hoshsadiq/adblock-nocoin-list/master/nocoin.txt',
+
+  'plowe-0':
+    'https://pgl.yoyo.org/adservers/serverlist.php?hostformat=adblockplus&showintro=0&mimetype=plaintext',
+
   'ublock-filters':
     'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/filters.txt',
   'ublock-badware':
@@ -26,25 +22,13 @@ const lists: any = {
     'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/privacy.txt',
   'ublock-unbreak':
     'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/unbreak.txt',
-};
-
-const objectToArray = (obj: any): any[] => {
-  const arr: any = [];
-  Object.keys(obj).forEach(k => {
-    if (obj[k]) {
-      arr.push({ name: k, value: obj[k][0] });
-    }
-  });
-  return arr;
+  'ublock-abuse':
+    'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/resource-abuse.txt',
 };
 
 export let engine: FiltersEngine;
 
 const loadFilters = async () => {
-  if (!existsSync(getPath('adblock'))) {
-    mkdirSync(getPath('adblock'));
-  }
-
   const path = resolve(getPath('adblock/cache.dat'));
 
   const downloadFilters = () => {
@@ -54,7 +38,7 @@ const loadFilters = async () => {
       ops.push(Axios.get(lists[key]));
     }
 
-    Axios.all(ops).then(res => {
+    Axios.all(ops).then(async res => {
       let data = '';
 
       for (const res1 of res) {
@@ -62,6 +46,12 @@ const loadFilters = async () => {
       }
 
       engine = FiltersEngine.parse(data);
+
+      const resources = (await Axios.get(
+        'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/resources.txt',
+      )).data;
+
+      engine.updateResources(resources, `${resources.length}`);
 
       writeFile(path, engine.serialize(), err => {
         if (err) return console.error(err);
@@ -83,7 +73,6 @@ const loadFilters = async () => {
         data,
         engine.config,
       );
-
       engine.update({
         newNetworkFilters: networkFilters,
         newCosmeticFilters: cosmeticFilters,
@@ -102,9 +91,12 @@ export const runAdblockService = (ses: Session) => {
   webRequest.onBeforeRequest(
     { urls: ['<all_urls>'] },
     async (details: Electron.OnBeforeRequestDetails, callback: any) => {
-      if (engine && settings.isShieldToggled) {
+      if (engine && settings.shield) {
         const { match, redirect } = engine.match(
-          makeRequest({ type: details.resourceType, url: details.url }, parse),
+          Request.fromRawDetails({
+            type: details.resourceType as any,
+            url: details.url,
+          }),
         );
 
         if (match || redirect) {
@@ -121,40 +113,6 @@ export const runAdblockService = (ses: Session) => {
       }
 
       callback({ cancel: false });
-    },
-  );
-
-  webRequest.onHeadersReceived(
-    { urls: ['<all_urls>'] },
-    async (details: Electron.OnHeadersReceivedDetails, callback: any) => {
-      const responseHeaders = objectToArray(
-        updateResponseHeadersWithCSP(
-          {
-            url: details.url,
-            type: details.resourceType as any,
-            tabId: details.webContentsId,
-            method: details.method,
-            statusCode: details.statusCode,
-            statusLine: details.statusLine,
-            requestId: details.id.toString(),
-            frameId: 0,
-            parentFrameId: -1,
-            timeStamp: details.timestamp,
-          },
-          engine.getCSPDirectives(
-            makeRequest(
-              {
-                sourceUrl: details.url,
-                type: details.resourceType,
-                url: details.url,
-              },
-              parse,
-            ),
-          ),
-        ),
-      );
-
-      callback({ cancel: false, responseHeaders });
     },
   );
 };

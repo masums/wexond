@@ -17,6 +17,7 @@ export class View extends BrowserView {
         contextIsolation: true,
         partition: 'persist:view',
         plugins: true,
+        additionalArguments: [`--window-id=${appWindow.id}`],
       },
     });
 
@@ -28,7 +29,7 @@ export class View extends BrowserView {
     });
 
     this.webContents.addListener('found-in-page', (e, result) => {
-      appWindow.webContents.send('found-in-page', result);
+      appWindow.findWindow.webContents.send('found-in-page', result);
     });
 
     this.webContents.addListener('did-stop-loading', () => {
@@ -47,7 +48,9 @@ export class View extends BrowserView {
       const url = this.webContents.getURL();
 
       // Adblocker cosmetic filtering
-      if (engine && settings.isShieldToggled) {
+      if (engine && settings.shield) {
+        if (url === '') return;
+
         const { styles, scripts } = engine.getCosmeticsFilters({
           url,
           ...parse(url),
@@ -66,12 +69,12 @@ export class View extends BrowserView {
     this.webContents.addListener(
       'new-window',
       (e, url, frameName, disposition) => {
+        e.preventDefault();
+
         if (disposition === 'new-window') {
           if (frameName === '_self') {
-            e.preventDefault();
             appWindow.viewManager.selected.webContents.loadURL(url);
           } else if (frameName === '_blank') {
-            e.preventDefault();
             appWindow.viewManager.create(
               {
                 url,
@@ -81,10 +84,8 @@ export class View extends BrowserView {
             );
           }
         } else if (disposition === 'foreground-tab') {
-          e.preventDefault();
           appWindow.viewManager.create({ url, active: true }, true);
         } else if (disposition === 'background-tab') {
-          e.preventDefault();
           appWindow.viewManager.create({ url, active: false }, true);
         }
       },

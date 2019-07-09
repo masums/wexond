@@ -1,7 +1,5 @@
 import styled, { css } from 'styled-components';
 
-import { shadows, button } from '~/shared/mixins';
-
 interface StyledButtonProps {
   background: string;
   foreground: string;
@@ -16,7 +14,7 @@ export const StyledButton = styled.div`
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: 30px;
   position: relative;
   cursor: pointer;
 
@@ -53,5 +51,5 @@ export const StyledButton = styled.div`
 
 export const StyledLabel = styled.div`
   z-index: 1;
-  ${button()};
+  font-size: 13px;
 `;
